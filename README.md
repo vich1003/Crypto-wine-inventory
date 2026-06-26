@@ -5,7 +5,7 @@
 Assignment 5 — Crypto / Blockchain App. This repo is the practical part: a real
 smart contract plus a zero-install browser demo, deliverable entirely through GitHub.
 
-[**▶ Live demo**](https://vich1003.github.io/Crypto-wine-inventory/) ← *(enable GitHub Pages, then drop the link here)*
+[**▶ Live demo**](https://vich1003.github.io/Crypto-wine-inventory/) 
 
 ---
 
