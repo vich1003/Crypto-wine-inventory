@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crypto Wine Inventory — Blockchain Provenance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --wine:#6B1F2E;          /* deep bordeaux, primary */
+    --wine-dark:#3E1119;     /* sediment, app bar / dark text on wine */
+    --gold:#B8893A;          /* trust / verified accent */
+    --green:#4A6B4A;         /* authentic stamp */
+    --parchment:#F5EFE6;     /* label cream, page bg */
+    --surface:#FFFFFF;       /* Material card */
+    --ink:#2A2024;           /* primary text */
+    --muted:#7A6E70;         /* secondary text */
+    --line:#E4DACB;          /* hairlines on parchment */
+    --shadow:0 1px 3px rgba(62,17,25,.12),0 1px 2px rgba(62,17,25,.08);
+    --shadow-2:0 4px 12px rgba(62,17,25,.16);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--parchment);color:var(--ink);
+    font-family:'Roboto',system-ui,sans-serif;line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* ---- App bar ---- */
+  .appbar{
+    background:var(--wine-dark);color:#F3E9DC;padding:18px 20px;
+    box-shadow:var(--shadow-2);position:sticky;top:0;z-index:10;
+  }
+  .appbar h1{
+    font-family:'Cormorant Garamond',serif;font-weight:600;
+    font-size:clamp(1.5rem,4vw,2rem);margin:0;letter-spacing:.3px;
+  }
+  .appbar p{margin:2px 0 0;font-size:.82rem;color:#D9B79C;letter-spacing:.4px}
+  .wrap{max-width:1040px;margin:0 auto;padding:20px}
+  /* ---- Role selector ---- */
+  .roles{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  .role-chip{
+    border:1px solid var(--line);background:var(--surface);color:var(--muted);
+    padding:9px 16px;border-radius:22px;font-size:.84rem;font-weight:500;
+    cursor:pointer;transition:.15s;display:flex;align-items:center;gap:8px;
+  }
+  .role-chip .dot{width:9px;height:9px;border-radius:50%;background:currentColor;opacity:.6}
+  .role-chip:hover{border-color:var(--gold)}
+  .role-chip.active{background:var(--wine);color:#fff;border-color:var(--wine)}
+  .role-chip.active .dot{opacity:1;background:var(--gold)}
+  .role-hint{font-size:.8rem;color:var(--muted);margin:0 0 20px}
+  /* ---- Layout ---- */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+  @media(max-width:820px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--surface);border-radius:14px;box-shadow:var(--shadow);padding:20px;border:1px solid var(--line)}
+  .card h2{
+    font-family:'Cormorant Garamond',serif;font-size:1.5rem;font-weight:600;
+    margin:0 0 4px;color:var(--wine-dark);
+  }
+  .card .sub{font-size:.82rem;color:var(--muted);margin:0 0 16px}
+  label{display:block;font-size:.76rem;font-weight:500;color:var(--muted);margin:12px 0 4px;letter-spacing:.3px}
+  input,select{
+    width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;
+    font-family:inherit;font-size:.9rem;background:#FCFAF6;color:var(--ink);
+  }
+  input:focus,select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(184,137,58,.15)}
+  .btn{
+    margin-top:18px;width:100%;padding:12px;border:none;border-radius:24px;
+    background:var(--wine);color:#fff;font-family:inherit;font-weight:500;
+    font-size:.9rem;letter-spacing:.5px;cursor:pointer;box-shadow:var(--shadow);transition:.15s;
+  }
+  .btn:hover{background:var(--wine-dark);box-shadow:var(--shadow-2)}
+  .btn.gold{background:var(--gold)}
+  .btn.gold:hover{background:#9c722d}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  /* ---- Bottle header / verify result ---- */
+  .verify-box{text-align:center;padding:8px 0 4px}
+  .seal{
+    display:inline-flex;align-items:center;gap:8px;background:rgba(74,107,74,.1);
+    color:var(--green);font-weight:700;font-size:.82rem;letter-spacing:.6px;
+    padding:8px 16px;border-radius:20px;border:1px solid rgba(74,107,74,.3);
+  }
+  .seal.fake{background:rgba(155,40,40,.08);color:#9B2828;border-color:rgba(155,40,40,.3)}
+  .bottle-name{font-family:'Cormorant Garamond',serif;font-size:1.8rem;color:var(--wine-dark);margin:14px 0 2px}
+  .bottle-meta{font-size:.85rem;color:var(--muted)}
+  .owner{font-family:'Roboto Mono',monospace;font-size:.78rem;color:var(--wine);margin-top:8px}
+  /* ---- Timeline (the signature element) ---- */
+  .timeline{margin-top:6px;position:relative;padding-left:6px}
+  .block{position:relative;padding:0 0 4px 30px;margin-bottom:14px}
+  .block::before{ /* the spine */
+    content:"";position:absolute;left:9px;top:18px;bottom:-14px;width:2px;background:var(--line);
+  }
+  .block:last-child::before{display:none}
+  .node{
+    position:absolute;left:0;top:2px;width:20px;height:20px;border-radius:50%;
+    border:3px solid var(--surface);box-shadow:0 0 0 2px var(--line);
+  }
+  .node.producer{background:var(--wine)}
+  .node.trade{background:var(--gold)}
+  .node.customer{background:var(--green)}
+  .block .action{font-weight:500;font-size:.92rem}
+  .block .where{font-size:.8rem;color:var(--muted)}
+  .block .hash{
+    font-family:'Roboto Mono',monospace;font-size:.7rem;color:var(--muted);
+    margin-top:5px;word-break:break-all;background:#FAF6EF;border:1px solid var(--line);
+    border-radius:6px;padding:5px 7px;line-height:1.4;
+  }
+  .block .hash b{color:var(--wine)}
+  .block .ts{font-size:.7rem;color:var(--muted);font-family:'Roboto Mono',monospace}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.74rem;color:var(--muted);margin:0 0 14px}
+  .legend span{display:flex;align-items:center;gap:6px}
+  .legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
+  .toast{
+    position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);
+    background:var(--wine-dark);color:#fff;padding:12px 20px;border-radius:8px;
+    font-size:.85rem;box-shadow:var(--shadow-2);opacity:0;pointer-events:none;transition:.25s;z-index:50;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .empty{text-align:center;color:var(--muted);font-size:.85rem;padding:30px 10px}
+  .integrity{font-size:.74rem;color:var(--green);margin-top:12px;display:flex;align-items:center;gap:6px}
+  .tamper-btn{background:none;border:1px dashed var(--line);color:var(--muted);font-size:.72rem;
+    padding:5px 10px;border-radius:6px;cursor:pointer;margin-top:10px}
+  .tamper-btn:hover{border-color:#9B2828;color:#9B2828}
+</style>
+</head>
+<body>
+  <div class="appbar">
+    <h1>Crypto Wine Inventory</h1>
+    <p>BLOCKCHAIN PROVENANCE — GRAPE TO GLASS</p>
+  </div>
+
+  <div class="wrap">
+    <div class="roles" id="roles">
+      <div class="role-chip active" data-role="producer"><span class="dot"></span>Producer / Winery</div>
+      <div class="role-chip" data-role="trade"><span class="dot"></span>Trade (importer · distributor · broker · retailer)</div>
+      <div class="role-chip" data-role="customer"><span class="dot"></span>Customer / Collector</div>
+    </div>
+    <p class="role-hint" id="roleHint"></p>
+
+    <div class="grid">
+      <!-- LEFT: action panel -->
+      <div class="card" id="actionPanel"></div>
+
+      <!-- RIGHT: ledger / timeline -->
+      <div class="card">
+        <h2>Provenance ledger</h2>
+        <p class="sub">The on-chain life of this bottle. Every block links to the one before it by hash — change any one and the rest break.</p>
+        <label>Inspecting bottle</label>
+        <select id="bottlePicker"></select>
+        <div id="verifyResult"></div>
+        <div class="legend">
+          <span><i style="background:var(--wine)"></i>Producer</span>
+          <span><i style="background:var(--gold)"></i>Trade</span>
+          <span><i style="background:var(--green)"></i>Customer</span>
+        </div>
+        <div class="timeline" id="timeline"></div>
+        <div id="integrity"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   Simulated blockchain
+   Each bottle owns a chain of blocks. A block's hash is the
+   SHA-256 of its contents + the previous block's hash, so the
+   chain is tamper-evident exactly like a real blockchain.
+   ============================================================ */
+
+async function sha256(str){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+// Friendly pseudo-addresses for the three actors.
+const ADDR = {
+  producer:'0x9aE1…Keller',
+  trade:   '0x4cB7…Trade',
+  customer:'0x7F20…Collector'
+};
+
+let nowSeed = Date.parse('2023-09-12T08:00:00');
+function nextTs(){ nowSeed += 86400000 * (1 + Math.floor(Math.random()*20)); return nowSeed; }
+
+async function makeBlock(prevHash, index, action, location, role, ts){
+  const author = ADDR[role];
+  const payload = `${index}|${ts}|${action}|${location}|${author}|${prevHash}`;
+  const hash = await sha256(payload);
+  return { index, ts, action, location, role, author, prevHash, hash };
+}
+
+// Build a chain from a list of [action, location, role] steps.
+async function buildChain(steps){
+  const chain = [];
+  let prev = '0'.repeat(64); // genesis previous-hash
+  let i = 0;
+  for(const [action, location, role] of steps){
+    const blk = await makeBlock(prev, i, action, location, role, nextTs());
+    chain.push(blk); prev = blk.hash; i++;
+  }
+  return chain;
+}
+
+// ---- Seed data: real wines from the project brief ----
+const SEED = [
+  {
+    id:'KEL-RIE-2021-0001', wineName:'Keller Riesling G-Max', producer:'Weingut Keller', vintage:2021, region:'Rheinhessen',
+    steps:[
+      ['Registered at winery','Flörsheim-Dalsheim','producer'],
+      ['Harvested','Flörsheim-Dalsheim','producer'],
+      ['Bottled & QR-sealed','Flörsheim-Dalsheim','producer'],
+      ['Shipped to importer','Mainz','trade'],
+      ['Stored in bonded warehouse','Frankfurt','trade'],
+    ]
+  },
+  {
+    id:'REB-SPB-2020-0007', wineName:'Rebholz Spätburgunder', producer:'Ökonomierat Rebholz', vintage:2020, region:'Pfalz',
+    steps:[
+      ['Registered at winery','Siebeldingen','producer'],
+      ['Bottled & QR-sealed','Siebeldingen','producer'],
+      ['Shipped to distributor','Karlsruhe','trade'],
+      ['Sold to collector','Karlsruhe','customer'],
+    ]
+  },
+  {
+    id:'BUR-RIE-2019-0042', wineName:'Bürklin-Wolf Riesling GC', producer:'Dr. Bürklin-Wolf', vintage:2019, region:'Pfalz',
+    steps:[
+      ['Registered at winery','Wachenheim','producer'],
+      ['Bottled & QR-sealed','Wachenheim','producer'],
+    ]
+  },
+];
+
+let BOTTLES = {};   // id -> {meta + chain}
+let activeBottle = null;
+let role = 'producer';
+
+async function initData(){
+  for(const s of SEED){
+    const chain = await buildChain(s.steps);
+    BOTTLES[s.id] = {
+      id:s.id, wineName:s.wineName, producer:s.producer,
+      vintage:s.vintage, region:s.region,
+      currentOwner: chain[chain.length-1].author,
+      chain
+    };
+  }
+  activeBottle = SEED[0].id;
+}
+
+/* ============================================================
+   Chain operations (mirror the Solidity functions)
+   ============================================================ */
+async function appendBlock(bottleId, action, location, asRole){
+  const b = BOTTLES[bottleId];
+  const prev = b.chain[b.chain.length-1].hash;
+  const blk = await makeBlock(prev, b.chain.length, action, location, asRole, nextTs());
+  b.chain.push(blk);
+}
+
+async function registerBottle(id, wineName, producer, vintage, region){
+  if(BOTTLES[id]) throw new Error('Bottle already registered');
+  const chain = await buildChain([['Registered at winery', region, 'producer']]);
+  BOTTLES[id] = { id, wineName, producer, vintage:+vintage, region, currentOwner:ADDR.producer, chain };
+  activeBottle = id;
+}
+
+async function transferOwnership(bottleId, toRole){
+  await appendBlock(bottleId, 'Ownership transferred', '', toRole);
+  BOTTLES[bottleId].currentOwner = ADDR[toRole];
+}
+
+// Verify the whole chain by recomputing every hash.
+async function verifyChain(bottleId){
+  const b = BOTTLES[bottleId];
+  let prev = '0'.repeat(64);
+  for(const blk of b.chain){
+    const expect = await sha256(`${blk.index}|${blk.ts}|${blk.action}|${blk.location}|${blk.author}|${prev}`);
+    if(expect !== blk.hash || blk.prevHash !== prev) return false;
+    prev = blk.hash;
+  }
+  return true;
+}
+
+/* ============================================================
+   Rendering
+   ============================================================ */
+const HINTS = {
+  producer:'You register bottles and log production steps. Maps to: producer, winery.',
+  trade:'You receive a bottle, add a logistics event, and pass it on. Maps to: importer, distributor, wholesaler, broker, retailer.',
+  customer:'You scan a bottle, verify it is genuine, and take ownership when you buy. Maps to: consumer, collector.'
+};
+
+function fmt(ts){ return new Date(ts).toISOString().slice(0,10); }
+function short(h){ return h.slice(0,10)+'…'+h.slice(-6); }
+
+function renderRoleHint(){ document.getElementById('roleHint').textContent = HINTS[role]; }
+
+function renderActionPanel(){
+  const el = document.getElementById('actionPanel');
+  if(role==='producer'){
+    el.innerHTML = `
+      <h2>Register a bottle</h2>
+      <p class="sub">Mint a new bottle onto the chain. This is the genesis record a counterfeit can never have.</p>
+      <label>Bottle ID (printed as QR on the label)</label>
+      <input id="f_id" placeholder="e.g. WIT-RIE-2022-0099">
+      <label>Wine name</label>
+      <input id="f_name" placeholder="e.g. Wittmann Morstein Riesling">
+      <div class="row2">
+        <div><label>Vintage</label><input id="f_vintage" type="number" value="2022"></div>
+        <div><label>Region</label><input id="f_region" placeholder="Rheinhessen"></div>
+      </div>
+      <label>Producer</label>
+      <input id="f_producer" placeholder="Weingut Wittmann">
+      <button class="btn" onclick="doRegister()">Register on chain</button>
+      <hr style="border:none;border-top:1px solid var(--line);margin:22px 0 4px">
+      <h2 style="font-size:1.2rem">Add production event</h2>
+      <p class="sub">Log a step for the bottle selected on the right (harvest, bottling…).</p>
+      <label>Event</label>
+      <input id="f_evt" placeholder="e.g. Harvested">
+      <label>Location</label>
+      <input id="f_loc" placeholder="e.g. Westhofen">
+      <button class="btn gold" onclick="doEvent('producer')">Add event</button>`;
+  } else if(role==='trade'){
+    el.innerHTML = `
+      <h2>Move the bottle along</h2>
+      <p class="sub">As any middleman you do two things: record a logistics event, and transfer ownership to the next link in the chain.</p>
+      <label>Logistics event</label>
+      <input id="f_evt" placeholder="e.g. Shipped to retailer">
+      <label>Location</label>
+      <input id="f_loc" placeholder="e.g. Hamburg">
+      <button class="btn gold" onclick="doEvent('trade')">Add logistics event</button>
+      <hr style="border:none;border-top:1px solid var(--line);margin:22px 0 4px">
+      <h2 style="font-size:1.2rem">Transfer ownership</h2>
+      <p class="sub">Hand the selected bottle to the next holder. Only the current owner can do this.</p>
+      <label>Transfer to</label>
+      <select id="f_to">
+        <option value="trade">Another trade actor</option>
+        <option value="customer">Customer / collector</option>
+      </select>
+      <button class="btn" onclick="doTransfer()">Transfer ownership</button>`;
+  } else {
+    el.innerHTML = `
+      <h2>Verify a bottle</h2>
+      <p class="sub">Scan the QR or type the bottle ID. The chain tells you instantly whether it is genuine and where it has been.</p>
+      <label>Bottle ID</label>
+      <input id="f_scan" placeholder="e.g. KEL-RIE-2021-0001">
+      <button class="btn" onclick="doVerify()">Verify authenticity</button>
+      <hr style="border:none;border-top:1px solid var(--line);margin:22px 0 4px">
+      <h2 style="font-size:1.2rem">Buy this bottle</h2>
+      <p class="sub">Take ownership of the bottle selected on the right. The purchase is written to its permanent history.</p>
+      <button class="btn gold" onclick="doBuy()">Take ownership</button>`;
+  }
+}
+
+async function renderLedger(){
+  // bottle picker
+  const picker = document.getElementById('bottlePicker');
+  picker.innerHTML = Object.values(BOTTLES)
+    .map(b=>`<option value="${b.id}" ${b.id===activeBottle?'selected':''}>${b.wineName} — ${b.id}</option>`).join('');
+
+  const b = BOTTLES[activeBottle];
+  const ok = await verifyChain(activeBottle);
+
+  // verify result header
+  document.getElementById('verifyResult').innerHTML = `
+    <div class="verify-box">
+      <span class="seal ${ok?'':'fake'}">${ok?'✓ AUTHENTIC — ON CHAIN':'✗ CHAIN BROKEN — DO NOT TRUST'}</span>
+      <div class="bottle-name">${b.wineName}</div>
+      <div class="bottle-meta">${b.producer} · ${b.vintage} · ${b.region}</div>
+      <div class="owner">current owner: ${b.currentOwner}</div>
+    </div>`;
+
+  // timeline
+  document.getElementById('timeline').innerHTML = b.chain.map(blk=>`
+    <div class="block">
+      <span class="node ${blk.role}"></span>
+      <div class="action">${blk.action}</div>
+      <div class="where">${blk.location || '—'} · <span class="ts">${fmt(blk.ts)}</span></div>
+      <div class="hash">block #${blk.index} · <b>hash</b> ${short(blk.hash)}<br>↳ prev ${short(blk.prevHash)}</div>
+    </div>`).join('');
+
+  document.getElementById('integrity').innerHTML = ok
+    ? `<div class="integrity">🔒 Chain verified — ${b.chain.length} linked blocks, all hashes match.</div>
+       <button class="tamper-btn" onclick="doTamper()">Simulate a forger editing a record →</button>`
+    : `<div class="integrity" style="color:#9B2828">⚠ A record was altered. Because every block's hash feeds the next, the tampering is detectable and the bottle is rejected.</div>
+       <button class="tamper-btn" onclick="location.reload()">Reset demo →</button>`;
+}
+
+async function render(){ renderRoleHint(); renderActionPanel(); await renderLedger(); }
+
+/* ============================================================
+   Actions
+   ============================================================ */
+function toast(msg){
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2600);
+}
+const val = id => (document.getElementById(id)?.value||'').trim();
+
+async function doRegister(){
+  const id=val('f_id'), name=val('f_name');
+  if(!id||!name){ toast('Bottle ID and wine name are required'); return; }
+  try{
+    await registerBottle(id,name,val('f_producer')||'Unknown winery',val('f_vintage')||2022,val('f_region')||'—');
+    toast('Bottle registered on chain'); await render();
+  }catch(e){ toast(e.message); }
+}
+async function doEvent(asRole){
+  const evt=val('f_evt'); if(!evt){ toast('Enter an event'); return; }
+  await appendBlock(activeBottle, evt, val('f_loc'), asRole);
+  toast('Event added to the chain'); await render();
+}
+async function doTransfer(){
+  await transferOwnership(activeBottle, val('f_to')||'trade');
+  toast('Ownership transferred'); await render();
+}
+async function doVerify(){
+  const id=val('f_scan');
+  if(!BOTTLES[id]){ toast('No such bottle on chain — possible counterfeit'); return; }
+  activeBottle=id; toast('Bottle found — verified'); await render();
+}
+async function doBuy(){
+  await transferOwnership(activeBottle,'customer');
+  toast('You now own this bottle'); await render();
+}
+// Show what happens when someone forges a record: edit a block in place
+// WITHOUT recomputing the downstream hashes. Verification then fails.
+async function doTamper(){
+  const b=BOTTLES[activeBottle];
+  if(b.chain.length>1){ b.chain[1].location='(forged origin)'; b.chain[1].action='Falsified provenance'; }
+  toast('A record was secretly altered…'); await renderLedger();
+}
+
+/* ---- wiring ---- */
+document.getElementById('roles').addEventListener('click', e=>{
+  const chip=e.target.closest('.role-chip'); if(!chip) return;
+  role=chip.dataset.role;
+  document.querySelectorAll('.role-chip').forEach(c=>c.classList.toggle('active',c===chip));
+  render();
+});
+document.getElementById('bottlePicker').addEventListener('change', async e=>{
+  activeBottle=e.target.value; await render();
+});
+
+(async function(){ await initData(); await render(); })();
+</script>
+</body>
+</html>
