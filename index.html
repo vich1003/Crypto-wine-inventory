@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
   :root{
     --wine:#6B1F2E;          /* deep bordeaux, primary */
@@ -85,6 +86,13 @@
   .bottle-name{font-family:'Cormorant Garamond',serif;font-size:1.8rem;color:var(--wine-dark);margin:14px 0 2px}
   .bottle-meta{font-size:.85rem;color:var(--muted)}
   .owner{font-family:'Roboto Mono',monospace;font-size:.78rem;color:var(--wine);margin-top:8px}
+  /* ---- QR ---- */
+  .qr-box{display:flex;flex-direction:column;align-items:center;gap:8px;margin:14px 0 4px;
+    padding:14px;background:#FCFAF6;border:1px solid var(--line);border-radius:12px}
+  .qr-box img,.qr-box canvas{border-radius:6px}
+  .qr-cap{font-size:.74rem;color:var(--muted);letter-spacing:.3px;text-align:center}
+  .qr-cap b{color:var(--wine);font-family:'Roboto Mono',monospace}
+  .qr-link{font-size:.68rem;color:var(--gold);word-break:break-all;font-family:'Roboto Mono',monospace}
   /* ---- Timeline (the signature element) ---- */
   .timeline{margin-top:6px;position:relative;padding-left:6px}
   .block{position:relative;padding:0 0 4px 30px;margin-bottom:14px}
@@ -149,6 +157,7 @@
         <label>Inspecting bottle</label>
         <select id="bottlePicker"></select>
         <div id="verifyResult"></div>
+        <div class="qr-box" id="qrBox"></div>
         <div class="legend">
           <span><i style="background:var(--wine)"></i>Producer</span>
           <span><i style="background:var(--gold)"></i>Trade</span>
@@ -388,9 +397,34 @@ async function renderLedger(){
        <button class="tamper-btn" onclick="doTamper()">Simulate a forger editing a record →</button>`
     : `<div class="integrity" style="color:#9B2828">⚠ A record was altered. Because every block's hash feeds the next, the tampering is detectable and the bottle is rejected.</div>
        <button class="tamper-btn" onclick="location.reload()">Reset demo →</button>`;
+
+  renderQR(activeBottle);
 }
 
-async function render(){ renderRoleHint(); renderActionPanel(); await renderLedger(); }
+// The unique QR for a bottle encodes a link to THIS page with the bottle id.
+// Scanning it on a phone opens the verify view for exactly that bottle.
+function bottleUrl(id){
+  return `${location.origin}${location.pathname}?bottle=${encodeURIComponent(id)}`;
+}
+function renderQR(bottleId){
+  const box = document.getElementById('qrBox');
+  box.innerHTML = '';
+  const url = bottleUrl(bottleId);
+  const holder = document.createElement('div');
+  box.appendChild(holder);
+  if(window.QRCode){
+    new QRCode(holder, {text:url, width:124, height:124,
+      colorDark:'#3E1119', colorLight:'#FCFAF6', correctLevel: QRCode.CorrectLevel.M});
+  } else {
+    holder.innerHTML = `<div class="qr-link">${url}</div>`;
+  }
+  const cap = document.createElement('div');
+  cap.className = 'qr-cap';
+  cap.innerHTML = `Print on the label — scan to verify<br><b>${bottleId}</b>`;
+  box.appendChild(cap);
+}
+
+async function render(){ syncChips(); renderRoleHint(); renderActionPanel(); await renderLedger(); }
 
 /* ============================================================
    Actions
@@ -446,7 +480,19 @@ document.getElementById('bottlePicker').addEventListener('change', async e=>{
   activeBottle=e.target.value; await render();
 });
 
-(async function(){ await initData(); await render(); })();
+function syncChips(){
+  document.querySelectorAll('.role-chip').forEach(c=>c.classList.toggle('active', c.dataset.role===role));
+}
+
+(async function(){
+  await initData();
+  // If the page was opened by scanning a bottle's QR code, jump straight to
+  // verifying that bottle as a Customer.
+  const scanned = new URLSearchParams(location.search).get('bottle');
+  if(scanned && BOTTLES[scanned]){ role='customer'; activeBottle=scanned; }
+  syncChips();
+  await render();
+})();
 </script>
 </body>
 </html>
